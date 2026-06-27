@@ -9,16 +9,19 @@ export default function DashboardPage() {
   const navigate = useNavigate();
 
   // ── State ──────────────────────────────────────────────────────────────────
-  const [accounts, setAccounts]         = useState([]);
-  const [selectedAccount, setSelected]  = useState(null);
-  const [ticks, setTicks]               = useState([]);
-  const [log, setLog]                   = useState([]);         // trading event log
-  const [otpUrl, setOtpUrl]             = useState(null);
-  const [proposalId, setProposalId]     = useState(null);
-  const [proposal, setProposal]         = useState(null);
-  const [loading, setLoading]           = useState({});
+  const [accounts, setAccounts]        = useState([]);
+  const [selectedAccount, setSelected] = useState(null);
+  const [ticks, setTicks]              = useState([]);
+  const [log, setLog]                  = useState([]);
+  const [otpUrl, setOtpUrl]            = useState(null);
+  const [proposalId, setProposalId]    = useState(null);
+  const [proposal, setProposal]        = useState(null);
+  const [loading, setLoading]          = useState({});
 
-  // WebSocket refs so we can close them on unmount
+  // Connection status tracked in state so button labels update correctly
+  const [publicConnected, setPublicConnected]  = useState(false);
+  const [authConnected, setAuthConnected]      = useState(false);
+
   const publicWsRef = useRef(null);
   const authWsRef   = useRef(null);
 
@@ -40,12 +43,11 @@ export default function DashboardPage() {
 
   // ── Actions ────────────────────────────────────────────────────────────────
 
-  /** Fetch the user's real account list */
+  /** Fetch the user's account list from backend → Deriv */
   async function handleFetchAccounts() {
     setLoad('accounts', true);
     try {
       const data = await fetchAccounts();
-      // Adapt to whatever shape Deriv returns — adjust field names as needed
       const list = data.accounts ?? data ?? [];
       setAccounts(list);
       addLog(`Loaded ${list.length} account(s)`);
@@ -56,11 +58,12 @@ export default function DashboardPage() {
     }
   }
 
-  /** Open public WebSocket and subscribe to ticks */
+  /** Toggle public WebSocket for live ticks */
   function handlePublicWS() {
     if (publicWsRef.current) {
       publicWsRef.current.close();
       publicWsRef.current = null;
+      setPublicConnected(false);
       addLog('Public WS disconnected');
       return;
     }
@@ -68,10 +71,9 @@ export default function DashboardPage() {
     addLog('Connecting to public WebSocket…');
     publicWsRef.current = createDerivWS(PUBLIC_WS_URL, {
       onOpen() {
+        setPublicConnected(true);
         addLog('Public WS connected');
-        // First ask for available symbols (optional)
         publicWsRef.current.send(DerivMsg.activeSymbols());
-        // Then subscribe to live ticks
         publicWsRef.current.send(DerivMsg.subscribeTicks('1HZ100V'));
       },
       onMessage(msg) {
@@ -85,11 +87,18 @@ export default function DashboardPage() {
         }
       },
       onError: () => addLog('Public WS error', 'error'),
-      onClose: () => addLog('Public WS closed'),
+      onClose: (ev) => {
+        // Only mark disconnected on intentional close (code 1000) or clean close
+        if (ev.wasClean || ev.code === 1000) {
+          setPublicConnected(false);
+          addLog('Public WS closed');
+        }
+        // backoff reconnect is handled inside createDerivWS
+      },
     });
   }
 
-  /** Request OTP from backend for the selected real account */
+  /** Request an OTP from backend for the selected real account */
   async function handleRequestOtp() {
     if (!selectedAccount) {
       addLog('Select an account first', 'warn');
@@ -98,7 +107,7 @@ export default function DashboardPage() {
     setLoad('otp', true);
     try {
       const data = await requestOtp(selectedAccount.account_id ?? selectedAccount.id);
-      setOtpUrl(data.url);
+      setOtpUrl(data.data?.url ?? data.url);
       addLog('OTP received — authenticated WS URL ready');
     } catch (err) {
       addLog(`OTP request failed: ${err.message}`, 'error');
@@ -107,7 +116,7 @@ export default function DashboardPage() {
     }
   }
 
-  /** Open authenticated WebSocket using the OTP URL */
+  /** Toggle authenticated WebSocket using the OTP URL */
   function handleAuthWS() {
     if (!otpUrl) {
       addLog('Request an OTP first', 'warn');
@@ -117,38 +126,56 @@ export default function DashboardPage() {
     if (authWsRef.current) {
       authWsRef.current.close();
       authWsRef.current = null;
+      setAuthConnected(false);
+      setProposalId(null);
+      setProposal(null);
       addLog('Authenticated WS disconnected');
       return;
     }
 
     addLog('Connecting to authenticated WebSocket…');
     authWsRef.current = createDerivWS(otpUrl, {
-      onOpen:  () => addLog('Authenticated WS connected — ready to trade'),
+      onOpen() {
+        setAuthConnected(true);
+        addLog('Authenticated WS connected — ready to trade');
+      },
       onError: () => addLog('Authenticated WS error', 'error'),
-      onClose: () => addLog('Authenticated WS closed'),
+      onClose: (ev) => {
+        if (ev.wasClean || ev.code === 1000) {
+          setAuthConnected(false);
+          addLog('Authenticated WS closed');
+        }
+      },
       onMessage(msg) {
         switch (msg.msg_type) {
           case 'proposal':
-            // Store the latest proposal for the buy step
             setProposalId(msg.proposal?.id);
             setProposal(msg.proposal);
-            addLog(`Proposal received: id=${msg.proposal?.id} price=${msg.proposal?.ask_price}`);
+            addLog(`Proposal: id=${msg.proposal?.id}  price=$${msg.proposal?.ask_price}  payout=$${msg.proposal?.payout}`);
             break;
+
           case 'buy':
             addLog(`Contract bought: id=${msg.buy?.contract_id}`, 'success');
-            // Subscribe to the open contract to track its status
             authWsRef.current?.send(
               DerivMsg.subscribeOpenContract(msg.buy.contract_id)
             );
             break;
+
           case 'proposal_open_contract': {
             const c = msg.proposal_open_contract;
             if (c?.is_sold) {
-              addLog(`Contract settled: profit=${c.profit} status=${c.status}`,
-                c.profit >= 0 ? 'success' : 'error');
+              addLog(
+                `Contract settled: profit=${c.profit >= 0 ? '+' : ''}${c.profit} status=${c.status}`,
+                c.profit >= 0 ? 'success' : 'error'
+              );
             }
             break;
           }
+
+          case 'error':
+            addLog(`WS error: ${msg.error?.message ?? JSON.stringify(msg.error)}`, 'error');
+            break;
+
           default:
             break;
         }
@@ -156,28 +183,30 @@ export default function DashboardPage() {
     });
   }
 
-  /** Send a proposal request over the authenticated WebSocket */
+  /** Send a CALL proposal over the authenticated WS */
   function handleSendProposal() {
     if (!authWsRef.current) {
       addLog('Connect authenticated WS first', 'warn');
       return;
     }
     authWsRef.current.send(DerivMsg.proposal());
-    addLog('Proposal request sent');
+    addLog('Proposal request sent (CALL / 1HZ100V / $10 / 5 ticks)');
   }
 
-  /** Buy the latest proposal */
+  /** Buy the last received proposal */
   function handleBuy() {
     if (!authWsRef.current || !proposalId) {
       addLog('No proposal to buy — send a proposal first', 'warn');
       return;
     }
     authWsRef.current.send(DerivMsg.buy(proposalId, proposal?.ask_price ?? 10));
-    addLog(`Buying proposal ${proposalId}…`);
+    addLog(`Buying proposal ${proposalId} @ $${proposal?.ask_price ?? 10}…`);
   }
 
-  /** Logout */
+  /** Logout: clear cookie, redirect to login */
   async function handleLogout() {
+    publicWsRef.current?.close();
+    authWsRef.current?.close();
     await logout().catch(() => {});
     navigate('/');
   }
@@ -213,7 +242,8 @@ export default function DashboardPage() {
                     className={`account-item ${selectedAccount === acc ? 'selected' : ''}`}
                     onClick={() => setSelected(acc)}
                   >
-                    {id} {acc.currency ? `(${acc.currency})` : ''}
+                    {id} {acc.currency ? `(${acc.currency})` : ''}{' '}
+                    {acc.account_type === 'real' ? '🟢' : '🔵'}
                   </button>
                 );
               })}
@@ -223,7 +253,7 @@ export default function DashboardPage() {
           <hr />
           <h2>Market Data</h2>
           <button className="btn" onClick={handlePublicWS}>
-            {publicWsRef.current ? 'Disconnect Public WS' : 'Connect Public WS'}
+            {publicConnected ? 'Disconnect Public WS' : 'Connect Public WS'}
           </button>
 
           <hr />
@@ -238,17 +268,18 @@ export default function DashboardPage() {
           {otpUrl && <p className="status-chip green">OTP ready</p>}
 
           <button className="btn" onClick={handleAuthWS} disabled={!otpUrl}>
-            {authWsRef.current ? 'Disconnect Auth WS' : 'Connect Auth WS'}
+            {authConnected ? 'Disconnect Auth WS' : 'Connect Auth WS'}
           </button>
 
-          <button className="btn" onClick={handleSendProposal} disabled={!authWsRef.current}>
+          <button className="btn" onClick={handleSendProposal} disabled={!authConnected}>
             Send Proposal (CALL / 1HZ100V)
           </button>
 
           {proposal && (
             <div className="proposal-box">
-              <p>Price: <strong>${proposal.ask_price}</strong></p>
+              <p>Ask price: <strong>${proposal.ask_price}</strong></p>
               <p>Payout: <strong>${proposal.payout}</strong></p>
+              <p>Multiplier: <strong>{((proposal.payout / proposal.display_value) * 100).toFixed(0)}%</strong></p>
             </div>
           )}
 
