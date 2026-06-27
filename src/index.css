@@ -1,0 +1,326 @@
+/* ── Design tokens ─────────────────────────────────────────────────────────
+   Palette: deep navy canvas, sharp green accent (trading terminal feel),
+   amber for warnings, true-red for errors.
+   Typography: JetBrains Mono for data/prices, Inter for UI chrome.
+──────────────────────────────────────────────────────────────────────────── */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap');
+
+:root {
+  --bg:        #0c0e14;
+  --bg2:       #141720;
+  --bg3:       #1c2030;
+  --border:    #252a3a;
+  --green:     #00d084;
+  --green-dim: #00a065;
+  --amber:     #f5a623;
+  --red:       #ff4d4d;
+  --text:      #e2e8f0;
+  --text-dim:  #64748b;
+  --mono:      'JetBrains Mono', monospace;
+  --sans:      'Inter', system-ui, sans-serif;
+  --radius:    6px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* ── Layout helpers ──────────────────────────────────────────────────────── */
+.page.center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+.card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 48px 40px;
+  max-width: 420px;
+  width: 100%;
+  text-align: center;
+}
+
+.card h1 {
+  font-size: 1.8rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.card .logo {
+  font-size: 2.5rem;
+  margin-bottom: 16px;
+}
+
+.card .subtitle {
+  color: var(--text-dim);
+  margin-bottom: 28px;
+}
+
+.card .note {
+  margin-top: 16px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.card.error {
+  border-color: var(--red);
+}
+
+/* ── Dashboard ───────────────────────────────────────────────────────────── */
+.dashboard {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  height: 52px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+}
+
+.brand {
+  font-weight: 600;
+  font-size: 1rem;
+  letter-spacing: 0.02em;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 260px 1fr 280px;
+  gap: 1px;
+  background: var(--border);
+  flex: 1;
+}
+
+.panel {
+  background: var(--bg);
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.panel h2 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+  margin-bottom: 12px;
+  margin-top: 4px;
+}
+
+.panel hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 16px 0;
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+.btn {
+  display: block;
+  width: 100%;
+  padding: 9px 16px;
+  margin-bottom: 8px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  text-align: left;
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--bg2);
+  border-color: var(--green-dim);
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn.primary {
+  background: var(--green);
+  color: #000;
+  border-color: var(--green);
+  text-align: center;
+  font-weight: 600;
+}
+
+.btn.primary:hover {
+  background: var(--green-dim);
+  border-color: var(--green-dim);
+}
+
+.btn.large {
+  padding: 12px 24px;
+  font-size: 15px;
+}
+
+.btn.accent {
+  background: var(--green);
+  color: #000;
+  border-color: var(--green);
+  font-weight: 600;
+  text-align: center;
+}
+
+.btn.accent:hover:not(:disabled) {
+  background: var(--green-dim);
+}
+
+.btn.small {
+  width: auto;
+  display: inline-block;
+  padding: 5px 12px;
+  font-size: 12px;
+}
+
+/* ── Account list ────────────────────────────────────────────────────────── */
+.account-list {
+  margin-bottom: 8px;
+}
+
+.account-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 7px 10px;
+  margin-bottom: 4px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.account-item.selected,
+.account-item:hover {
+  border-color: var(--green);
+  color: var(--green);
+  background: rgba(0, 208, 132, 0.06);
+}
+
+/* ── Status chips ────────────────────────────────────────────────────────── */
+.status-chip {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 20px;
+  display: inline-block;
+  margin-bottom: 8px;
+}
+
+.status-chip.green {
+  background: rgba(0, 208, 132, 0.12);
+  color: var(--green);
+  border: 1px solid var(--green-dim);
+}
+
+/* ── Proposal box ────────────────────────────────────────────────────────── */
+.proposal-box {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.proposal-box p { margin-bottom: 4px; }
+
+/* ── Ticks table ─────────────────────────────────────────────────────────── */
+.ticks-panel { max-height: calc(100vh - 52px); overflow-y: auto; }
+
+.tick-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.tick-table th {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.tick-table td {
+  padding: 5px 8px;
+  border-bottom: 1px solid rgba(37, 42, 58, 0.5);
+}
+
+.tick-table tr:first-child td { color: var(--green); }
+
+.price { color: var(--text); }
+
+/* ── Event log ───────────────────────────────────────────────────────────── */
+.log-panel { max-height: calc(100vh - 52px); overflow-y: auto; }
+
+.log-entry {
+  display: flex;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(37, 42, 58, 0.4);
+  font-size: 12px;
+}
+
+.log-ts {
+  color: var(--text-dim);
+  font-family: var(--mono);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.log-msg { color: var(--text); word-break: break-word; }
+
+.log-entry.error .log-msg   { color: var(--red); }
+.log-entry.success .log-msg { color: var(--green); }
+.log-entry.warn .log-msg    { color: var(--amber); }
+
+/* ── Spinner ─────────────────────────────────────────────────────────────── */
+.spinner {
+  width: 32px; height: 32px;
+  border: 3px solid var(--border);
+  border-top-color: var(--green);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  margin: 0 auto 16px;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.empty { color: var(--text-dim); font-size: 13px; }
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+  .panel { max-height: none; }
+}

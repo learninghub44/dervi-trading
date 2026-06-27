@@ -1,0 +1,9 @@
+# Single service — builds Vite then serves everything from Express
+[build]
+  builder = "nixpacks"
+  buildCommand = "npm install && npm run build"
+
+[deploy]
+  startCommand = "npm start"
+  healthcheckPath = "/health"
+  restartPolicyType = "on-failure"
